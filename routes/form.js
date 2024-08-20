@@ -1,5 +1,6 @@
 const express = require('express');
 const Form = require('../models/Form');
+const { Parser } = require('json2csv');
 
 const router = express.Router();
 
@@ -21,6 +22,40 @@ router.get('/', async (req, res, next) => {
     res.json(forms);
   } catch (error) {
     next(error);
+  }
+});
+
+router.get('/export-csv', async (req, res) => {
+  try {
+    // Fetch all form data from the database
+    const formData = await Form.find({});
+
+    // Define the fields you want in the CSV
+    const fields = [
+      'userId',
+      'userName',
+      'phoneWorking',
+      'phoneMappedCorrectly',
+      'correctName',
+      'gender',
+      'assembly',
+      'boothNumber',
+      'associatedWithShivSena',
+      'associationDetails',
+      'memberDuration',
+      'awareOfRegistration',
+    ];
+
+    // Create a JSON2CSV parser instance
+    const json2csvParser = new Parser({ fields });
+    const csv = json2csvParser.parse(formData);
+
+    // Set the proper headers for a CSV download
+    res.header('Content-Type', 'text/csv');
+    res.attachment('formData.csv');
+    res.send(csv);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to export data to CSV' });
   }
 });
 

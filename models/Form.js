@@ -8,6 +8,10 @@ const FormSchema = new Schema(
       ref: "User",
       required: true,
     },
+    userName: {
+      type: String,
+      required: true,
+    },
     phoneWorking: {
       type: String,
       required: true,
@@ -16,6 +20,9 @@ const FormSchema = new Schema(
       type: String,
     },
     correctName: {
+      type: String,
+    },
+    interestedInQuestions: {
       type: String,
     },
     gender: {

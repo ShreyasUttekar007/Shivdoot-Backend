@@ -2,8 +2,6 @@ const mongoose = require("mongoose");
 const { Schema } = mongoose;
 const bcrypt = require("bcrypt");
 
-
-
 const UserSchema = new Schema(
   {
     userName: {
@@ -26,15 +24,17 @@ const UserSchema = new Schema(
       type: [
         {
           type: String,
-          enum: [
-            "admin",
-            "mod",
-            "user",
-          ],
+          enum: ["admin", "mod", "user"],
         },
       ],
       default: ["user"],
     },
+    shownDatasets: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "dataset",
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -52,7 +52,6 @@ UserSchema.pre("save", function (next) {
   });
 });
 
-// Compares the password entered with the hash stored in the database
 UserSchema.methods.comparePassword = function (candidatePassword, next) {
   bcrypt.compare(candidatePassword, this.password, function (err, isMatch) {
     if (err) return next(err);
