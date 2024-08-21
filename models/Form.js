@@ -12,6 +12,10 @@ const FormSchema = new Schema(
       type: String,
       required: true,
     },
+    shivdootPhoneNumber: {
+      type: String,
+      required: true,
+    },
     phoneWorking: {
       type: String,
       required: true,
