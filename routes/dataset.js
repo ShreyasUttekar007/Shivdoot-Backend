@@ -1,86 +1,109 @@
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const Dataset = require("../models/DataSet");
-const User = require("../models/User");
-const moment = require("moment");
+const User = require('../models/User');
+const Dataset = require('../models/DataSet');
 
-router.get("/assign-dataset/:userId", async (req, res) => {
+// Helper function to fetch and assign new entries
+async function fetchAndAssignEntries(userId) {
+  // Fetch user
+  const user = await User.findById(userId).populate('shownDatasets');
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Check for existing valid entries (assigned within the last 24 hours)
+  const existingEntries = await Dataset.find({
+    _id: { $in: user.shownDatasets },
+    updatedAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // within the last 24 hours
+  });
+
+  // If the user already has valid entries, return those
+  if (existingEntries.length > 0) {
+    return existingEntries;
+  }
+
+  // Otherwise, find entries that need to be reassigned (24 hours passed and status not updated)
+  const reassignedEntries = await Dataset.find({
+    shownTo: userId,
+    callingStatus: '',
+    isUsed: false,
+    updatedAt: { $lt: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // older than 24 hours
+  }).limit(80);
+
+  // Find new entries to assign (excluding reassigned entries)
+  const newEntries = await Dataset.find({
+    isUsed: false,
+    shownTo: { $ne: userId },
+    _id: { $nin: reassignedEntries.map(e => e._id) },
+  }).limit(80 - reassignedEntries.length);
+
+  // Combine reassigned and new entries
+  const entriesToAssign = [...reassignedEntries, ...newEntries];
+
+  // Update entries with the userId
+  const assignments = entriesToAssign.map(async entry => {
+    entry.shownTo = userId;
+    await entry.save();
+  });
+
+  // Update user's shownDatasets
+  user.shownDatasets = entriesToAssign.map(entry => entry._id);
+  await user.save();
+
+  await Promise.all(assignments);
+
+  return entriesToAssign;
+}
+
+
+// Fetch entries assigned to a specific user
+router.get('/get-data/:userId/entries', async (req, res) => {
   try {
     const userId = req.params.userId;
-    const user = await User.findById(userId);
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    // Fetch and assign entries if necessary
+    const entries = await fetchAndAssignEntries(userId);
 
-    // Find 80 datasets where callingStatus is empty or does not exist and the datasets haven't been shown to any user
-    const newDatasets = await Dataset.find({
-      $or: [
-        { callingStatus: "" },           // Entries with callingStatus as an empty string
-        { callingStatus: { $exists: false } } // Entries with no callingStatus field
-      ],
-      $or: [
-        { shownTo: { $exists: false } },  // Ensure datasets haven't been shown to any user
-        { shownTo: { $ne: userId } }      // or have not been shown to the current user
-      ]
-    })
-    .limit(80)
-    .exec();
-
-    if (newDatasets.length === 0) {
-      return res.status(404).json({ message: "No datasets available" });
-    }
-
-    // Update the datasets to mark them as shown to the current user
-    await Dataset.updateMany(
-      { _id: { $in: newDatasets.map((dataset) => dataset._id) } },
-      { shownTo: userId }
-    );
-
-    // Add the datasets to the user's shownDatasets
-    user.shownDatasets.push(...newDatasets.map((dataset) => dataset._id));
-    await user.save();
-
-    res.json(newDatasets);
+    res.status(200).json({ entries });
   } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch entries' });
   }
 });
 
-
-
-
-router.post("/update-calling-status/:datasetId", async (req, res) => {
+// Update calling status of a specific entry
+router.put('/update-calling/:entryId/calling-status', async (req, res) => {
   try {
-    const datasetId = req.params.datasetId;
-    const { callingStatus, formFilled } = req.body;
+    const { status, formFilled } = req.body;
+    const entryId = req.params.entryId;
 
-    // Validate the request body
-    if (callingStatus === undefined || formFilled === undefined) {
-      return res.status(400).json({ message: "Missing callingStatus or formFilled in request body" });
+    // Check if status is provided
+    if (!status) {
+      return res.status(400).json({ error: 'Calling status is required' });
     }
 
-    // Find and update the dataset entry
-    const dataset = await Dataset.findById(datasetId);
-
-    if (!dataset) {
-      return res.status(404).json({ message: "Dataset entry not found" });
+    // Fetch the entry by ID
+    const entry = await Dataset.findById(entryId);
+    if (!entry) {
+      return res.status(404).json({ error: 'Entry not found' });
     }
 
-    dataset.callingStatus = callingStatus;
-    dataset.formFilled = formFilled;
+    // Update the calling status and form filled status
+    entry.callingStatus = status;
+    if (formFilled !== undefined) {
+      entry.formFilled = formFilled;
+    }
+    entry.isUsed = true; // Mark entry as used once status is updated
 
-    // Save the updated dataset
-    await dataset.save();
+    // Save the updated entry
+    await entry.save();
 
-    res.json({ message: "Calling status updated", dataset });
+    res.status(200).json({ message: 'Entry updated successfully' });
   } catch (error) {
-    console.error("Error updating dataset:", error);
-    res.status(500).json({ message: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update entry' });
   }
 });
-
 
 
 module.exports = router;
