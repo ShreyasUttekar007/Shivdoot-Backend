@@ -35,6 +35,7 @@ router.get('/export-csv', async (req, res) => {
       'userId',
       'userName',
       'phoneWorking',
+      'shivdootPhoneNumber',
       'phoneMappedCorrectly',
       'correctName',
       'gender',
