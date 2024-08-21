@@ -35,6 +35,7 @@ const UserSchema = new Schema(
         ref: "dataset",
       },
     ],
+    lastAssigned: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );

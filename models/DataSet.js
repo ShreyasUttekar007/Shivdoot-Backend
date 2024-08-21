@@ -32,6 +32,10 @@ const DatasetSchema = new Schema(
       ],
       default: '',
     },
+    updatedBy: {
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      userName: { type: String },
+    },
   },
   { timestamps: true }
 );
