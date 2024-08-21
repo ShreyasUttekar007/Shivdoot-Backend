@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const Dataset = require("../models/Dataset");
+const Dataset = require("../models/DataSet");
 const User = require("../models/User");
 const moment = require("moment");
 
