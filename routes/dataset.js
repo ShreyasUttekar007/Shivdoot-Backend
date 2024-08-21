@@ -13,11 +13,15 @@ router.get("/assign-dataset/:userId", async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Find 80 datasets where callingStatus is empty or does not exist
+    // Find 80 datasets where callingStatus is empty or does not exist and the datasets haven't been shown to any user
     const newDatasets = await Dataset.find({
       $or: [
         { callingStatus: "" },           // Entries with callingStatus as an empty string
         { callingStatus: { $exists: false } } // Entries with no callingStatus field
+      ],
+      $or: [
+        { shownTo: { $exists: false } },  // Ensure datasets haven't been shown to any user
+        { shownTo: { $ne: userId } }      // or have not been shown to the current user
       ]
     })
     .limit(80)
@@ -34,7 +38,7 @@ router.get("/assign-dataset/:userId", async (req, res) => {
     );
 
     // Add the datasets to the user's shownDatasets
-    user.shownDatasets = newDatasets.map((dataset) => dataset._id);
+    user.shownDatasets.push(...newDatasets.map((dataset) => dataset._id));
     await user.save();
 
     res.json(newDatasets);
@@ -43,6 +47,7 @@ router.get("/assign-dataset/:userId", async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
 
 
 
