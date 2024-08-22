@@ -134,6 +134,64 @@ router.put("/update-calling/:entryId/calling-status", async (req, res) => {
 });
 
 
+function getTodayRange() {
+  const startOfDay = new Date();
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date();
+  endOfDay.setHours(23, 59, 59, 999);
+
+  return { startOfDay, endOfDay };
+}
+
+// API route to get calling status stats
+router.get('/calling-status/stats', async (req, res) => {
+  try {
+    const { startOfDay, endOfDay } = getTodayRange();
+
+    // Aggregate today's calling status counts
+    const todayStats = await Dataset.aggregate([
+      { 
+        $match: { 
+          updatedAt: { $gte: startOfDay, $lte: endOfDay } 
+        }
+      },
+      {
+        $group: {
+          _id: "$callingStatus",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Aggregate total calling status counts
+    const totalStats = await Dataset.aggregate([
+      {
+        $group: {
+          _id: "$callingStatus",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Prepare response format
+    const response = {
+      today: todayStats.reduce((acc, status) => {
+        acc[status._id || 'No Status'] = status.count;
+        return acc;
+      }, {}),
+      total: totalStats.reduce((acc, status) => {
+        acc[status._id || 'No Status'] = status.count;
+        return acc;
+      }, {})
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching calling status stats:', error);
+    res.status(500).json({ error: 'Failed to fetch calling status stats' });
+  }
+});
 
 
 
