@@ -131,6 +131,102 @@ router.get('/calling-status/stats', async (req, res) => {
 
 
 
+// API route to get calling status stats per user
+router.get('/calling-status/stats-per-user', async (req, res) => {
+  try {
+    const { startOfDay, endOfDay } = getTodayRange();
+
+    // Aggregate today's calling status counts per user
+    const todayStatsPerUser = await Dataset.aggregate([
+      { 
+        $match: { 
+          updatedAt: { $gte: startOfDay, $lte: endOfDay } 
+        }
+      },
+      {
+        $group: {
+          _id: { userId: "$updatedBy.userId", status: "$callingStatus" },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id.userId",
+          foreignField: "_id",
+          as: "user"
+        }
+      },
+      {
+        $unwind: "$user"
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id.userId",
+          userName: "$user.userName",
+          status: "$_id.status",
+          count: "$count"
+        }
+      }
+    ]);
+
+    // Aggregate total calling status counts per user
+    const totalStatsPerUser = await Dataset.aggregate([
+      {
+        $group: {
+          _id: { userId: "$updatedBy.userId", status: "$callingStatus" },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id.userId",
+          foreignField: "_id",
+          as: "user"
+        }
+      },
+      {
+        $unwind: "$user"
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id.userId",
+          userName: "$user.userName",
+          status: "$_id.status",
+          count: "$count"
+        }
+      }
+    ]);
+
+    // Prepare response format
+    const response = {
+      today: todayStatsPerUser.reduce((acc, stat) => {
+        const userId = stat.userId;
+        if (!acc[userId]) {
+          acc[userId] = { userName: stat.userName, statuses: {} };
+        }
+        acc[userId].statuses[stat.status || 'No Status'] = stat.count;
+        return acc;
+      }, {}),
+      total: totalStatsPerUser.reduce((acc, stat) => {
+        const userId = stat.userId;
+        if (!acc[userId]) {
+          acc[userId] = { userName: stat.userName, statuses: {} };
+        }
+        acc[userId].statuses[stat.status || 'No Status'] = stat.count;
+        return acc;
+      }, {})
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching calling status stats per user:', error);
+    res.status(500).json({ error: 'Failed to fetch calling status stats per user' });
+  }
+});
 
 
 module.exports = router;

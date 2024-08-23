@@ -57,7 +57,13 @@ router.get('/forms/stats', async (req, res) => {
     ]);
 
     // Get user details for all userIds
-    const userIds = [...new Set([...todayForms.map(t => t._id.toString()), ...overallForms.map(o => o._id.toString())])];
+    const userIds = [
+      ...new Set([
+        ...todayForms.map(t => t._id?.toString() || ''), 
+        ...overallForms.map(o => o._id?.toString() || '')
+      ])
+    ].filter(id => id); // Filter out empty strings
+
     const users = await User.find({ _id: { $in: userIds } }).select('userName email _id');
 
     // Map user details for fast lookup
@@ -68,15 +74,19 @@ router.get('/forms/stats', async (req, res) => {
 
     // Combine the results with userName and email
     const stats = overallForms.map(overall => {
-      const today = todayForms.find(t => t._id.toString() === overall._id.toString());
+      if (!overall._id) return null; // Skip if _id is null
+
+      const userIdStr = overall._id.toString();
+      const today = todayForms.find(t => t._id?.toString() === userIdStr);
+
       return {
         userId: overall._id,
-        userName: userMap[overall._id.toString()] ? userMap[overall._id.toString()].userName : 'Unknown',
-        email: userMap[overall._id.toString()] ? userMap[overall._id.toString()].email : 'Unknown',
+        userName: userMap[userIdStr] ? userMap[userIdStr].userName : 'Unknown',
+        email: userMap[userIdStr] ? userMap[userIdStr].email : 'Unknown',
         todayCount: today ? today.todayCount : 0,
         overallCount: overall.overallCount
       };
-    });
+    }).filter(stat => stat !== null); // Filter out null values
 
     res.status(200).json({ stats });
   } catch (error) {
