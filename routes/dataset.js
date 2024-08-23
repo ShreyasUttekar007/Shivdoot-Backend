@@ -4,88 +4,24 @@ const User = require("../models/User");
 const Dataset = require("../models/DataSet");
 const mongoose = require("mongoose");
 
-async function fetchAndAssignEntries(userId) {
-  // Fetch user and their current datasets
-  const user = await User.findById(userId).populate('shownDatasets');
-  if (!user) {
-    throw new Error('User not found');
-  }
-
-  // Check if a new day has started
-  const lastAssigned = user.lastAssigned;
-  const now = new Date();
-
-  const isNewDay = now.getUTCDate() !== lastAssigned.getUTCDate() ||
-                   now.getUTCMonth() !== lastAssigned.getUTCMonth() ||
-                   now.getUTCFullYear() !== lastAssigned.getUTCFullYear();
-
-  // Check for duplicates in shownDatasets across all users
-  const allUsers = await User.find({ _id: { $ne: userId } }).populate('shownDatasets');
-
-  const userDatasetIds = user.shownDatasets.map(entry => entry._id.toString());
-  let hasDuplicates = false;
-
-  allUsers.forEach(otherUser => {
-    const otherUserDatasetIds = otherUser.shownDatasets.map(entry => entry._id.toString());
-    const commonDatasets = otherUserDatasetIds.filter(id => userDatasetIds.includes(id));
-
-    if (commonDatasets.length > 0) {
-      hasDuplicates = true;
-    }
-  });
-
-  // If a new day has started, duplicates exist, or user has no datasets, reassign a new set of datasets
-  if (isNewDay || hasDuplicates || user.shownDatasets.length === 0) {
-    // Find datasets not assigned to any user currently and with an empty callingStatus
-    const availableDatasets = await Dataset.find({
-      isUsed: false,
-      shownTo: null,
-      callingStatus: '' // Only select entries where callingStatus is empty
-    }).limit(80);
-
-    if (availableDatasets.length < 80) {
-      // If not enough datasets available, include some from those already assigned but not shown to the current user
-      const additionalDatasets = await Dataset.find({
-        isUsed: false,
-        shownTo: { $ne: userId },
-        callingStatus: '' // Ensure the additional entries also have an empty callingStatus
-      }).limit(80 - availableDatasets.length);
-
-      availableDatasets.push(...additionalDatasets);
-    }
-
-    // Clear the user's current datasets
-    user.shownDatasets = [];
-
-    // Assign the new unique datasets to the user
-    const assignments = availableDatasets.map(async entry => {
-      entry.shownTo = userId;
-      await entry.save();
-    });
-
-    user.shownDatasets = availableDatasets.map(entry => entry._id);
-    user.lastAssigned = now; // Update the last assigned time
-    await user.save();
-
-    await Promise.all(assignments);
-  }
-
-  // Return the (possibly updated) datasets for the user
-  return user.shownDatasets;
-}
-
-
-// API route for fetching assigned datasets for a user
 router.get('/get-data/:userId/entries', async (req, res) => {
   try {
     const userId = req.params.userId;
-    const entries = await fetchAndAssignEntries(userId);
+    const user = await User.findById(userId).populate('shownDatasets');
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const entries = user.shownDatasets;
     res.status(200).json({ entries });
   } catch (error) {
     console.error('Error in fetching entries:', error);
     res.status(500).json({ error: 'Failed to fetch entries' });
   }
 });
+
+
 
 
 // Update calling status of a specific entry
