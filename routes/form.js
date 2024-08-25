@@ -2,6 +2,7 @@ const express = require('express');
 const Form = require('../models/Form');
 const { Parser } = require('json2csv');
 const User = require("../models/User");
+const Dataset = require('../models/DataSet');
 
 const router = express.Router();
 
@@ -25,6 +26,51 @@ function getTodayRange() {
 
   return { startOfDay, endOfDay };
 }
+
+router.get('/phone-working-stats', async (req, res) => {
+  try {
+    const stats = await Form.aggregate([
+      {
+        $group: {
+          _id: '$phoneWorking',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          totalYes: {
+            $sum: {
+              $cond: [{ $eq: ['$_id', 'Yes'] }, '$count', 0]
+            }
+          },
+          totalNo: {
+            $sum: {
+              $cond: [{ $eq: ['$_id', 'No'] }, '$count', 0]
+            }
+          },
+          overallTotal: { $sum: '$count' }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          totalYes: 1,
+          totalNo: 1,
+          overallTotal: 1
+        }
+      }
+    ]);
+
+    // If no data found, return counts as 0
+    const result = stats.length > 0 ? stats[0] : { totalYes: 0, totalNo: 0, overallTotal: 0 };
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching phone working stats:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 // API route to get the count of forms filled today and overall by each user
 router.get('/forms/stats', async (req, res) => {
@@ -135,6 +181,48 @@ router.get('/export-csv', async (req, res) => {
     // Set the proper headers for a CSV download
     res.header('Content-Type', 'text/csv');
     res.attachment('formData.csv');
+    res.send(csv);
+  } catch (err) {
+    console.error('Error exporting data to CSV:', err);
+    res.status(500).json({ error: 'Failed to export data to CSV' });
+  }
+});
+
+router.get('/export-csv-dataset', async (req, res) => {
+  try {
+    // Fetch all form data from the database
+    const formData = await Dataset.find({});
+
+    // Define the fields you want in the CSV
+    const fields = [
+      'district',
+      'pc',
+      'acName',
+      'acNumber',
+      'taluka',
+      'boothNumber',
+      'boothName',
+      'boothPramukhName',
+      'boothPramukhContactNumber',
+      'boothPramukhGender',
+      'shivdootName',
+      'shivdootContactNumber',
+      'shivdootGender',
+      'zone',
+      'shownTo',
+      'isUsed',
+      'formFilled',
+      'callingStatus',
+      'createdAt'
+    ];
+
+    // Create a JSON2CSV parser instance
+    const json2csvParser = new Parser({ fields });
+    const csv = json2csvParser.parse(formData);
+
+    // Set the proper headers for a CSV download
+    res.header('Content-Type', 'text/csv');
+    res.attachment('callingDataset.csv');
     res.send(csv);
   } catch (err) {
     console.error('Error exporting data to CSV:', err);

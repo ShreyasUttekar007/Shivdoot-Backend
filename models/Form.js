@@ -16,6 +16,10 @@ const FormSchema = new Schema(
       type: String,
       required: true,
     },
+    callingStatus: {
+      type: String,
+      required: true,
+    },
     phoneWorking: {
       type: String,
       required: true,
