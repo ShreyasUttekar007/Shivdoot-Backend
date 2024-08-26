@@ -22,7 +22,6 @@ const FormSchema = new Schema(
     },
     phoneWorking: {
       type: String,
-      required: true,
     },
     phoneMappedCorrectly: {
       type: String,
