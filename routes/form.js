@@ -31,38 +31,55 @@ router.get('/phone-working-stats', async (req, res) => {
   try {
     const stats = await Form.aggregate([
       {
-        $group: {
-          _id: '$phoneWorking',
-          count: { $sum: 1 }
+        $project: {
+          isYes: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ['$callingStatus', ''] },  // If callingStatus is present, use it
+                  { $eq: ['$callingStatus', 'Answered'] }
+                ]
+              },
+              1,
+              {
+                $cond: [
+                  { $eq: ['$phoneWorking', 'Yes'] },  // Else fallback to phoneWorking
+                  1,
+                  0
+                ]
+              }
+            ]
+          },
+          isNo: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ['$callingStatus', ''] },  // If callingStatus is present, use it
+                  { $in: ['$callingStatus', ['Not answered', 'Not interested', 'Invalid number', 'Switch off']] }
+                ]
+              },
+              1,
+              {
+                $cond: [
+                  { $eq: ['$phoneWorking', 'No'] },  // Else fallback to phoneWorking
+                  1,
+                  0
+                ]
+              }
+            ]
+          }
         }
       },
       {
         $group: {
           _id: null,
-          totalYes: {
-            $sum: {
-              $cond: [{ $eq: ['$_id', 'Yes'] }, '$count', 0]
-            }
-          },
-          totalNo: {
-            $sum: {
-              $cond: [{ $eq: ['$_id', 'No'] }, '$count', 0]
-            }
-          },
-          overallTotal: { $sum: '$count' }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          totalYes: 1,
-          totalNo: 1,
-          overallTotal: 1
+          totalYes: { $sum: '$isYes' },
+          totalNo: { $sum: '$isNo' },
+          overallTotal: { $sum: { $add: ['$isYes', '$isNo'] } }
         }
       }
     ]);
 
-    // If no data found, return counts as 0
     const result = stats.length > 0 ? stats[0] : { totalYes: 0, totalNo: 0, overallTotal: 0 };
 
     res.json(result);
@@ -71,6 +88,9 @@ router.get('/phone-working-stats', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+
+
 
 // API route to get the count of forms filled today and overall by each user
 router.get('/forms/stats', async (req, res) => {
