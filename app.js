@@ -10,6 +10,7 @@ const authMiddleware = require("./middleware/authMiddleware");
 const errorHandler = require("./middleware/errorHandler");
 const authRoutes = require("./routes/auth");
 const formRoutes = require("./routes/form");
+const boothRoutes = require("./routes/boothPramukh");
 const datasetRoutes = require("./routes/dataset");
 const cookieParser = require("cookie-parser");
 const session = require("express-session");
@@ -75,6 +76,7 @@ app.use(errorHandler);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/form", formRoutes);
+app.use("/api/boothform", boothRoutes);
 app.use("/api/dataset", datasetRoutes);
 
 if (process.env.NODE_ENV === "production") {
