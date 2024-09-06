@@ -55,7 +55,7 @@ router.get('/phone-working-stats', async (req, res) => {
               {
                 $and: [
                   { $ne: ['$callingStatus', ''] },  // If callingStatus is present, use it
-                  { $in: ['$callingStatus', ['Not answered', 'Not interested', 'Invalid number', 'Switch off']] }
+                  { $in: ['$callingStatus', ['Not Answered', 'Not Interested', 'Invalid Number', 'Switch Off']] }
                 ]
               },
               1,
