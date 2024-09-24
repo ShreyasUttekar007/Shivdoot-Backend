@@ -188,6 +188,7 @@ router.get('/export-csv', async (req, res) => {
       'membersEnrolled',
       'assembly',
       'boothNumber',
+      'createdAt',
     ];
 
     // Create a JSON2CSV parser instance
